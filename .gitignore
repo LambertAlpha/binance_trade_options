@@ -79,3 +79,17 @@ Desktop.ini
 # 临时文件
 *.tmp
 *.temp 
+
+# 项目特定文件 - 只保留 simple_trade.py 和 requirements.txt
+check_account.py
+check_permissions.py
+env.example
+network_test.py
+option_info.py
+README.md
+simple_test.py
+test_api.py
+test_spot_api.py
+test.py
+trade_fixed.py
+trade.py 
