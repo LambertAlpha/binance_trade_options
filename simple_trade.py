@@ -5,8 +5,8 @@ import time
 import urllib.parse
 import argparse
 
-api_key = "" 
-secret_key= "" 
+api_key = "vd39E0LUaYLqm4RpMSUyqXjBgpPhMhD0N0gFlUkZGChDV9SntE4QGjsKZTtImb7Q" 
+secret_key= "BJpWrnknAMMkqD0ORljZKo6raWEmxr3vot6Bok5DDXH3222LxRldtRP6KK5cYeD6" 
 base_url = "https://eapi.binance.com"
 endpoint_path = '/eapi/v1/order'
 timestamp = round(time.time()*1000)
