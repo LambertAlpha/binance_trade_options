@@ -1,169 +1,287 @@
-# 币安市价下单接口
-# 接口: /eapi/v1/depth (公开接口，无需签名)
+# 币安期权市价卖单程序 - 贴买一卖（比买一高5块钱挂单）
+# python market_trade.py --symbol ETH-250728-3600-C --quantity 0.1 --premium 2.0
+# python market_trade.py --symbol ETH-250730-3700-P \
+# --quantity 1 \
+# --premium 2
 import requests
 import argparse
 import json
+import time
+import hmac
+import hashlib
+import urllib.parse
+from datetime import datetime
 
 # 币安期权API配置
-base_url = "https://eapi.binance.com"
-endpoint_path = '/eapi/v1/depth'
+BASE_URL = "https://eapi.binance.com"
+ORDERBOOK_ENDPOINT = '/eapi/v1/depth'
+ORDER_ENDPOINT = '/eapi/v1/order'
+OPEN_ORDERS_ENDPOINT = '/eapi/v1/openOrders'
+HISTORY_ORDERS_ENDPOINT = '/eapi/v1/historyOrders'
 
-# 命令行参数解析
-parser = argparse.ArgumentParser(description='获取币安期权订单簿深度数据')
-parser.add_argument('--symbol', required=True, help='期权交易对，例如: ETH-250728-3600-C')
-parser.add_argument('--quantity', required=True)
-parser.add_argument('--side', required=True)
+# API密钥配置 - 请填入你的实际密钥
+API_KEY = ""  # 请替换为你的实际API Key
+SECRET_KEY = ""  # 请替换为你的实际Secret Key
 
-args = parser.parse_args()
+def get_timestamp():
+    """获取当前时间戳"""
+    return int(time.time() * 1000)
 
-# 构建请求参数
-params = {
-    "symbol": args.symbol,
-    "quantity": args.quantity,
-    "side": args.side
-}
+def create_signature(query_string, secret_key):
+    """创建签名"""
+    return hmac.new(
+        secret_key.encode('utf-8'),
+        query_string.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
 
-
-waiting_qty = args.quantity
-completed_qty = 0
-
-def get_orderbook(args.symbol):
-    # 命令行参数解析
-    parser = argparse.ArgumentParser(description='获取币安期权订单簿深度数据')
-    parser.add_argument('--symbol', required=True, help='期权交易对，例如: ETH-250728-3600-C')
-    parser.add_argument('--limit', type=int, default=100, choices=[10, 20, 50, 100, 500, 1000], 
-                        help='返回条目数量 (默认: 100)')
-
-    args = parser.parse_args()
-
-    # 构建请求参数
+def get_orderbook(symbol, limit=100):
+    """获取订单簿深度数据"""
     params = {
-        "symbol": args.symbol,
-        "limit": args.limit
+        "symbol": symbol,
+        "limit": limit
     }
-
+    
     try:
-        # 发送请求
-        response = requests.get(base_url + endpoint_path, params=params, timeout=10)
+        response = requests.get(BASE_URL + ORDERBOOK_ENDPOINT, params=params, timeout=10)
+        response.raise_for_status()
+        orderbook = response.json()
+        
+        if 'bids' not in orderbook or 'asks' not in orderbook:
+            print(f"获取订单簿失败: {orderbook}")
+            return None
+            
+        return orderbook
+        
+    except requests.exceptions.RequestException as e:
+        print(f"获取订单簿失败: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"解析订单簿数据失败: {e}")
+        return None
 
-
-    return orderbook 
-# 返回像这样的数据{"bids":[["1085","14.34"],["1065","0.42"],["5","10"]],"asks":[["1175","11.74"],["1230","0.42"]],"T":1753791719929,"u":29752}%    
-
-
-def send_limit_order():
-        parser.add_argument('--symbol', required=True, help='交易标的，例如: ETH-250725-3600-C')
-    parser.add_argument('--side', choices=['BUY', 'SELL'], required=True, help='交易方向: BUY 或 SELL')
-    parser.add_argument('--type', default='LIMIT', choices=['LIMIT', 'MARKET'], help='订单类型: LIMIT 或 MARKET (默认: LIMIT)')
-    parser.add_argument('--quantity', type=float, required=True, help='交易数量')
-    parser.add_argument('--price', type=float, help='价格 (LIMIT订单必须)')
-    parser.add_argument('--time-in-force', default='GTC', choices=['GTC', 'IOC', 'FOK'], 
-                        help='订单有效期类型 (默认: GTC)')
-
-    args = parser.parse_args()
-
+def send_limit_order(symbol, side, quantity, price):
+    """发送限价订单"""
+    timestamp = get_timestamp()
+    
     params = {
-        "symbol": args.symbol,
-        "side": args.side,
-        "type": args.type,
-        "quantity": args.quantity,
-        "price": args.price, 
-        "timeInForce": args.time_in_force,
+        "symbol": symbol,
+        "side": side,
+        "type": "LIMIT",
+        "quantity": str(quantity),
+        "price": price,
+        "timeInForce": "GTC",
         "timestamp": timestamp
     }
-
-
-    querystring = urllib.parse.urlencode(params)
-    signature = hmac.new(secret_key.encode('utf-8'),msg = querystring.encode('utf-8'), digestmod = hashlib.sha256).hexdigest()
-    url = base_url + endpoint_path + "?" + querystring + "&signature=" + signature
-    print(url)
-
-    payload = {}
-    headers= {
-        'X-MBX-APIKEY': api_key
-    }
-
-    response = requests.request("POST",url, headers=headers, data = payload)
-    print(response.status_code)
-    print(response.text)
-
-    return order_id
-
-def check_order(symbol,order_id):
-     /eapi/v1/historyOrders
-     symbol	STRING	YES	Option trading pair
-orderId	LONG	NO	Returns the orderId and subsequent orders, the most recent order is returned by default
-    [
-    {
-        "orderId": 4611922413427359795,
-        "symbol": "BTC-220715-2000-C",
-        "price": "18000.00000000",
-        "quantity": "-0.50000000",
-        "executedQty": "-0.50000000",
-        "fee": "3.00000000",
-        "side": "SELL",
-        "type": "LIMIT",
-        "timeInForce": "GTC",
-        "reduceOnly": false,
-        "postOnly": false,
-        "createTime": 1657867694244,
-        "updateTime": 1657867888216,
-        "status": "FILLED",
-        "reason": "0",
-        "avgPrice": "18000.00000000",
-        "source": "API",
-        "clientOrderId": "",
-        "priceScale": 2,
-        "quantityScale": 2,
-        "optionSide": "CALL",
-        "quoteAsset": "USDT",
-        "mmp": false
-    }
-]
-     return status
-
-
-     return status
     
+    # 创建查询字符串和签名
+    query_string = urllib.parse.urlencode(params)
+    signature = create_signature(query_string, SECRET_KEY)
+    
+    # 构建完整URL
+    url = f"{BASE_URL}{ORDER_ENDPOINT}?{query_string}&signature={signature}"
+    
+    headers = {
+        'X-MBX-APIKEY': API_KEY,
+        'Content-Type': 'application/x-www-form-urlencoded'
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        order_result = response.json()
+        
+        if 'orderId' in order_result:
+            print(f"下单成功! 订单ID: {order_result['orderId']}, 价格: {price}, 数量: {quantity}")
+            return order_result['orderId']
+        else:
+            print(f"下单失败: {order_result}")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"下单请求失败: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"解析下单响应失败: {e}")
+        return None
+
+def check_order_status(symbol, order_id):
+    """查询订单状态 - 先查开放订单，再查历史订单"""
+    timestamp = get_timestamp()
+    
+    # 第一步: 查询开放订单 (活跃状态: ACCEPTED, PARTIALLY_FILLED)
+    params = {
+        "symbol": symbol,
+        "timestamp": timestamp
+    }
+    
+    query_string = urllib.parse.urlencode(params)
+    signature = create_signature(query_string, SECRET_KEY)
+    
+    url = f"{BASE_URL}{OPEN_ORDERS_ENDPOINT}?{query_string}&signature={signature}"
+    
+    headers = {
+        'X-MBX-APIKEY': API_KEY
+    }
+    
+    try:
+        # 查询开放订单
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        open_orders = response.json()
+        
+        # 在开放订单中查找
+        for order in open_orders:
+            if order['orderId'] == order_id:
+                status = order['status']
+                executed_qty = float(order['executedQty'])
+                print(f"订单在开放列表中: 状态={status}, 已成交={executed_qty}")
+                return status, executed_qty
+        
+        # 第二步: 如果不在开放订单中，查询历史订单 (完成状态: FILLED, CANCELLED, REJECTED)
+        print(f"订单不在开放列表中，查询历史订单...")
+        
+        history_params = {
+            "symbol": symbol,
+            "orderId": order_id,
+            "timestamp": get_timestamp()  # 重新获取时间戳
+        }
+        
+        history_query_string = urllib.parse.urlencode(history_params)
+        history_signature = create_signature(history_query_string, SECRET_KEY)
+        
+        history_url = f"{BASE_URL}{HISTORY_ORDERS_ENDPOINT}?{history_query_string}&signature={history_signature}"
+        
+        history_response = requests.get(history_url, headers=headers, timeout=10)
+        history_response.raise_for_status()
+        history_orders = history_response.json()
+        
+        # 在历史订单中查找
+        for order in history_orders:
+            if order['orderId'] == order_id:
+                status = order['status']
+                executed_qty = float(order['executedQty'])
+                
+                # 如果订单被拒绝，显示拒绝原因
+                if status == "REJECTED":
+                    reject_reason = order.get('reason', '未知原因')
+                    print(f"订单在历史列表中: 状态={status}, 已成交={executed_qty}, 拒绝原因={reject_reason}")
+                else:
+                    print(f"订单在历史列表中: 状态={status}, 已成交={executed_qty}")
+                
+                return status, executed_qty
+        
+        # 如果两个地方都找不到，可能是订单ID错误或网络问题s
+        print(f"警告: 订单ID {order_id} 在开放订单和历史订单中都未找到")
+        return None, 0
+        
+    except requests.exceptions.RequestException as e:
+        print(f"查询订单状态失败: {e}")
+        return None, 0
+    except json.JSONDecodeError as e:
+        print(f"解析订单状态响应失败: {e}")
+        return None, 0
 
 def main():
+    # 命令行参数解析
+    parser = argparse.ArgumentParser(description='币安期权贴买一卖程序')
+    parser.add_argument('--symbol', required=True, help='期权交易对，例如: ETH-250728-3600-C')
+    parser.add_argument('--quantity', type=float, required=True, help='总卖出数量')
+    parser.add_argument('--side', default='SELL', help='交易方向(默认: SELL)')
+    parser.add_argument('--premium', type=float, default=5.0, help='相对买一的溢价(默认: 5.0)')
+    
+    args = parser.parse_args()
+    
+    # 检查API密钥配置
+    if API_KEY == "your_api_key_here" or SECRET_KEY == "your_secret_key_here":
+        print("错误: 请先配置你的API密钥!")
+        print("请在代码中将API_KEY和SECRET_KEY替换为你的实际密钥")
+        return
+    
+    # 检查是否为卖单
+    if args.side.upper() != "SELL":
+        print("这个程序只支持卖出(SELL)操作")
+        return
+    
+    completed_qty = 0.0
+    
+    print(f"开始执行期权卖出程序")
+    print(f"交易对: {args.symbol}")
+    print(f"总数量: {args.quantity}")
+    print(f"溢价: {args.premium}")
+    print("-" * 50)
+    
     while completed_qty < args.quantity:
-        if args.side == "B":
-            print("这个程序只卖不买")
-            break
-
+        remaining_qty = args.quantity - completed_qty
+        print(f"剩余待卖数量: {remaining_qty}")
+        
+        # 获取订单簿
         orderbook = get_orderbook(args.symbol)
-
-        if orderbook.bids(args.symbol) == null:
-            print(no bid depth)
-            break
-
-        order_qty = orderbook.bids[1]买一的数量
-
-        if order_qty >= waiting_qty:
-            qty = waiting_qty
-        else:
-             qty = order_qty
-
-        # 这个函数实现比买一高五块钱的挂单
-        order_id = send_limit_order(qty,symbol)
-        print(下单信息)
-
-        # 轮询看订单成交的状态
-        check_order(order_id)
-
-        if status = "Filled"订单完成
-        else:
-            继续轮询
-
-        completed_qty += qty
-
-
-
-
-main()
+        if not orderbook or not orderbook.get('bids'):
+            print("无法获取订单簿或无买单深度，等待5秒后重试...")
+            time.sleep(5)
+            continue
+        
+        # 获取买一价格和数量
+        best_bid_price = float(orderbook['bids'][0][0])
+        best_bid_qty = float(orderbook['bids'][0][1])
+        
+        print(f"当前买一: 价格={best_bid_price}, 数量={best_bid_qty}")
+        
+        if best_bid_qty == 0:
+            print("买一数量为0，等待5秒后重试...")
+            time.sleep(5)
+            continue
+        
+        # 计算挂单价格（比买一高指定溢价）
+        order_price = best_bid_price + args.premium
+        print(type(order_price))
+        
+        # 计算本次挂单数量（不超过买一数量和剩余数量）
+        order_qty = min(best_bid_qty, remaining_qty)
+        
+        print(f"挂单信息: 价格={order_price}, 数量={order_qty}")
+        
+        # 发送限价卖单
+        order_id = send_limit_order(args.symbol, "SELL", order_qty, order_price)
+        
+        if not order_id:
+            print("下单失败，等待5秒后重试...")
+            time.sleep(5)
+            continue
+        
+        # 轮询订单状态
+        print("开始监控订单状态...")
+        while True:
+            status, executed_qty = check_order_status(args.symbol, order_id)
+            
+            if status is None:
+                print("查询订单状态失败，等待3秒后重试...")
+                time.sleep(3)
+                continue
+            
+            if status == "FILLED":
+                print(f"订单完全成交! 成交数量: {order_qty}")
+                completed_qty += order_qty
+                break
+            elif status == "PARTIALLY_FILLED":
+                print(f"订单部分成交, 已成交: {executed_qty}")
+                # 可以选择继续等待或取消订单重新挂单
+                time.sleep(2)
+            elif status == "ACCEPTED":
+                print("订单已接受，等待成交...")
+                time.sleep(2)
+            else:
+                print(f"订单状态: {status}, 退出监控")
+                break
+        
+        print(f"当前已完成数量: {completed_qty}/{args.quantity}")
+        print("-" * 50)
+        
+        # 避免过于频繁的请求
+        time.sleep(1)
     
-    
+    print(f"程序执行完成! 总成交数量: {completed_qty}")
 
-    
-
+if __name__ == "__main__":
+    main()
