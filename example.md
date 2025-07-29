@@ -6,7 +6,7 @@ python simple_trade.py \
   --price 55
 
 python get_orderbook.py \
-  --symbol BTC-250728-119500-P \
+  --symbol BTC-250730-119500-P \
   --limit 10
 
 python get_blocktrades.py \
