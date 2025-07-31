@@ -1,7 +1,7 @@
 <!-- 示例终端命令 -->
 python simple_trade.py \
-  --symbol "ETH-250730-3700-P" \
-  --side BUY \
+  --symbol "ETH-250731-3800-P" \
+  --side SELL \
   --quantity 0.1 \
   --price 2
 
@@ -16,6 +16,10 @@ python get_blocktrades.py \
 python market_trade.py --symbol ETH-250730-3700-P \
 --quantity 1 \
 --premium 2
+
+python market_trade.py --symbol ETH-250731-3800-P \
+--quantity 0.1 \
+--discount 2
 
 <!-- 参数合集 -->
 symbol	STRING	YES	Option trading pair, e.g BTC-200730-9000-C

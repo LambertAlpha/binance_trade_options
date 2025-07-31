@@ -1,8 +1,8 @@
-# 币安期权市价卖单程序 - 贴买一卖（比买一高5块钱挂单）
-# python market_trade.py --symbol ETH-250728-3600-C --quantity 0.1 --premium 2.0
+# 币安期权市价卖单程序 - 贴卖一卖（比卖一便宜挂单）
+# python market_trade.py --symbol ETH-250728-3600-C --quantity 0.1 --discount 2.0
 # python market_trade.py --symbol ETH-250730-3700-P \
 # --quantity 1 \
-# --premium 2
+# --discount 2
 import requests
 import argparse
 import json
@@ -69,7 +69,7 @@ def send_limit_order(symbol, side, quantity, price):
         "side": side,
         "type": "LIMIT",
         "quantity": str(quantity),
-        "price": price,
+        "price": str(price),
         "timeInForce": "GTC",
         "timestamp": timestamp
     }
@@ -184,11 +184,11 @@ def check_order_status(symbol, order_id):
 
 def main():
     # 命令行参数解析
-    parser = argparse.ArgumentParser(description='币安期权贴买一卖程序')
+    parser = argparse.ArgumentParser(description='币安期权贴卖一卖程序')
     parser.add_argument('--symbol', required=True, help='期权交易对，例如: ETH-250728-3600-C')
     parser.add_argument('--quantity', type=float, required=True, help='总卖出数量')
     parser.add_argument('--side', default='SELL', help='交易方向(默认: SELL)')
-    parser.add_argument('--premium', type=float, default=5.0, help='相对买一的溢价(默认: 5.0)')
+    parser.add_argument('--discount', type=float, default=5.0, help='相对卖一的折扣(默认: 5.0)')
     
     args = parser.parse_args()
     
@@ -208,7 +208,7 @@ def main():
     print(f"开始执行期权卖出程序")
     print(f"交易对: {args.symbol}")
     print(f"总数量: {args.quantity}")
-    print(f"溢价: {args.premium}")
+    print(f"折扣: {args.discount}")
     print("-" * 50)
     
     while completed_qty < args.quantity:
@@ -217,28 +217,38 @@ def main():
         
         # 获取订单簿
         orderbook = get_orderbook(args.symbol)
-        if not orderbook or not orderbook.get('bids'):
-            print("无法获取订单簿或无买单深度，等待5秒后重试...")
+        if not orderbook or not orderbook.get('bids') or not orderbook.get('asks'):
+            print("无法获取订单簿或无买卖单深度，等待5秒后重试...")
             time.sleep(5)
             continue
         
-        # 获取买一价格和数量
+        # 获取买一和卖一价格数量
         best_bid_price = float(orderbook['bids'][0][0])
         best_bid_qty = float(orderbook['bids'][0][1])
+        best_ask_price = float(orderbook['asks'][0][0])
+        best_ask_qty = float(orderbook['asks'][0][1])
         
         print(f"当前买一: 价格={best_bid_price}, 数量={best_bid_qty}")
+        print(f"当前卖一: 价格={best_ask_price}, 数量={best_ask_qty}")
         
-        if best_bid_qty == 0:
-            print("买一数量为0，等待5秒后重试...")
+        if best_ask_qty == 0:
+            print("卖一数量为0，等待5秒后重试...")
             time.sleep(5)
             continue
         
-        # 计算挂单价格（比买一高指定溢价）
-        order_price = best_bid_price + args.premium
-        print(type(order_price))
+        # 计算挂单价格（比卖一便宜指定折扣）
+        calculated_price = best_ask_price - args.discount
         
-        # 计算本次挂单数量（不超过买一数量和剩余数量）
-        order_qty = min(best_bid_qty, remaining_qty)
+        # 检查价格逻辑：如果计算价格等于或比买一便宜，直接挂卖一
+        if calculated_price <= best_bid_price:
+            order_price = best_ask_price
+            print(f"计算价格{calculated_price}过低（≤买一{best_bid_price}），直接挂卖一价格: {order_price}")
+        else:
+            order_price = calculated_price
+            print(f"挂单价格: {order_price} (卖一{best_ask_price} - 折扣{args.discount})")
+        
+        # 计算本次挂单数量（不超过卖一数量和剩余数量）
+        order_qty = min(best_ask_qty, remaining_qty)
         
         print(f"挂单信息: 价格={order_price}, 数量={order_qty}")
         
